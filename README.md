@@ -41,9 +41,12 @@ import (
 )
 
 func main() {
-	f := pathfmt.NewTemplate("/api/v1/users/{id}")
+	f := pathfmt.New("/api/v1/users/{id}")
 
-	m := f.ToMap("/api/v1/users/123")
+	m, err := f.ToMap("/api/v1/users/123")
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	fmt.Println(m)
 	// Output: map[id:123]
