@@ -10,32 +10,37 @@ import (
 const tag = "path"
 
 type Format struct {
-	namedParts []namedPart
+	str   string
+	parts []part
 }
 
-type namedPart struct {
-	name  string
-	index int
+type part struct {
+	static   string
+	variable string
 }
 
 // New creates a new Format from a path string.
 // The path string should be of the form:
 // "/items/{id}/subitems/{subid}"
 func New(path string) *Format {
-	var namedParts []namedPart
-	parts := split(path)
+	var parts []part
+	splt := split(path)
 
-	for i, part := range parts {
-		if strings.HasPrefix(part, "{") && strings.HasSuffix(part, "}") {
-			namedParts = append(namedParts, namedPart{
-				name:  strings.TrimSuffix(strings.TrimPrefix(part, "{"), "}"),
-				index: i,
+	for _, s := range splt {
+		if strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}") {
+			parts = append(parts, part{
+				variable: strings.TrimSuffix(strings.TrimPrefix(s, "{"), "}"),
+			})
+		} else {
+			parts = append(parts, part{
+				static: s,
 			})
 		}
 	}
 
 	return &Format{
-		namedParts: namedParts,
+		str:   path,
+		parts: parts,
 	}
 }
 
@@ -52,7 +57,10 @@ func New(path string) *Format {
 //
 // and sets the values of the struct fields to the values in the path.
 func (f *Format) ToStruct(s string, x interface{}) error {
-	m := f.ToMap(s)
+	m, err := f.ToMap(s)
+	if err != nil {
+		return err
+	}
 
 	val := reflect.ValueOf(x)
 	if val.Kind() != reflect.Ptr {
@@ -133,17 +141,26 @@ func (f *Format) ToStruct(s string, x interface{}) error {
 // for a template like
 // "/items/{id}/subitems/{subid}"
 // into a map with key-pairs "id":"123" and "subid":"xyz".
-func (f *Format) ToMap(path string) map[string]string {
-	parts := split(path)
+func (f *Format) ToMap(path string) (map[string]string, error) {
+	splt := split(path)
+
 	m := map[string]string{}
 
-	for _, np := range f.namedParts {
-		if np.index < len(parts) {
-			m[np.name] = parts[np.index]
+	for i, s := range splt {
+		if i >= len(f.parts) {
+			break
+		}
+
+		if f.parts[i].variable != "" {
+			m[f.parts[i].variable] = s
+		} else {
+			if f.parts[i].static != s {
+				return nil, fmt.Errorf("expected format %q: got %q: expected string %q, got %q", f.str, path, f.parts[i].static, s)
+			}
 		}
 	}
 
-	return m
+	return m, nil
 }
 
 func split(s string) []string {

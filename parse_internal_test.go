@@ -1,22 +1,28 @@
 package pathfmt
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestNew(t *testing.T) {
 	cases := []struct {
 		input    string
-		expected []namedPart
+		expected []part
 	}{
 		{
 			input: "/items/{id}/subitems/{subid}",
-			expected: []namedPart{
+			expected: []part{
 				{
-					name:  "id",
-					index: 1,
+					static: "items",
 				},
 				{
-					name:  "subid",
-					index: 3,
+					variable: "id",
+				},
+				{
+					static: "subitems",
+				},
+				{
+					variable: "subid",
 				},
 			},
 		},
@@ -26,11 +32,11 @@ func TestNew(t *testing.T) {
 		t.Run(c.input, func(t *testing.T) {
 			tmpl := New(c.input)
 
-			if len(tmpl.namedParts) != len(c.expected) {
-				t.Fatalf("expected %d named parts, got %d", len(c.expected), len(tmpl.namedParts))
+			if len(tmpl.parts) != len(c.expected) {
+				t.Fatalf("expected %d named parts, got %d", len(c.expected), len(tmpl.parts))
 			}
 
-			for i, np := range tmpl.namedParts {
+			for i, np := range tmpl.parts {
 				if np != c.expected[i] {
 					t.Fatalf("expected named part %v, got %v", c.expected[i], np)
 				}
@@ -40,10 +46,11 @@ func TestNew(t *testing.T) {
 }
 func TestToMap(t *testing.T) {
 	cases := []struct {
-		name     string
-		template string
-		input    string
-		expected map[string]string
+		name        string
+		template    string
+		input       string
+		expectError bool
+		expected    map[string]string
 	}{
 		{
 			name:     "exact-match",
@@ -71,12 +78,30 @@ func TestToMap(t *testing.T) {
 				"subid": "456",
 			},
 		},
+		{
+			name:        "invalid-static-part",
+			template:    "/items/{id}/subitems/{subid}",
+			input:       "/items/123/invalid/456",
+			expectError: true,
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			template := New(c.template)
-			m := template.ToMap(c.input)
+			m, err := template.ToMap(c.input)
+
+			if c.expectError {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				t.Logf("expected error was returned: %v", err)
+				return
+			} else {
+				if err != nil {
+					t.Fatalf("got unexpected error: %v", err)
+				}
+			}
 
 			if len(m) != len(c.expected) {
 				t.Fatalf("expected %d values, got %d", len(c.expected), len(m))
@@ -101,9 +126,10 @@ func TestToStruct(t *testing.T) {
 	}
 
 	cases := []struct {
-		name     string
-		input    string
-		expected MyPath
+		name        string
+		input       string
+		expectError bool
+		expected    MyPath
 	}{
 		{
 			name:  "all-values",
@@ -133,15 +159,30 @@ func TestToStruct(t *testing.T) {
 				D: true,
 			},
 		},
+		{
+			name:        "bad-type",
+			input:       "/a/abc/b/xyz",
+			expectError: true,
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			template := New(pathTemplate)
 			var path MyPath
+
 			err := template.ToStruct(c.input, &path)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+
+			if c.expectError {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				t.Logf("expected error was returned: %v", err)
+				return
+			} else {
+				if err != nil {
+					t.Fatalf("got unexpected error: %v", err)
+				}
 			}
 
 			if path != c.expected {
