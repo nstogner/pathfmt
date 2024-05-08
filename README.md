@@ -1,6 +1,6 @@
 # pathfmt
 
-Parse variables from paths like `/ids/{id}` in Go.
+Parse variables from paths like `/items/{id}` in Go.
 
 ## Structs
 
