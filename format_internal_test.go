@@ -191,3 +191,111 @@ func TestToStruct(t *testing.T) {
 		})
 	}
 }
+
+func TestFromStruct(t *testing.T) {
+	type MyPath struct {
+		A string  `path:"a"`
+		B int     `path:"b"`
+		C float64 `path:"c"`
+		D bool    `path:"d"`
+	}
+
+	cases := []struct {
+		name     string
+		template string
+		input    MyPath
+		expected string
+	}{
+		{
+			name:     "all-values",
+			template: "/a/{a}/b/{b}/c/{c}/d/{d}",
+			input: MyPath{
+				A: "abc",
+				B: 123,
+				C: 3.14,
+				D: true,
+			},
+			expected: "/a/abc/b/123/c/3.14/d/true",
+		},
+		{
+			name:     "missing-values",
+			template: "/a/{a}/b/{b}/c/{c}/d/{d}",
+			input: MyPath{
+				A: "abc",
+				B: 123,
+			},
+			expected: "/a/abc/b/123/c/0/d/false",
+		},
+		{
+			name:     "all-values-no-leading-slash",
+			template: "a/{a}/b/{b}/c/{c}/d/{d}",
+			input: MyPath{
+				A: "abc",
+				B: 123,
+				C: 3.14,
+				D: true,
+			},
+			expected: "a/abc/b/123/c/3.14/d/true",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			template := New(c.template)
+
+			s, err := template.FromStruct(c.input)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if s != c.expected {
+				t.Fatalf("expected %s, got %s", c.expected, s)
+			}
+		})
+	}
+
+}
+
+func Test_structField(t *testing.T) {
+	s := struct {
+		A string `path:"a"`
+		B int    `path:"b"`
+		C bool   `path:"c"`
+	}{
+		A: "abc",
+		B: 123,
+		C: true,
+	}
+
+	for _, c := range []struct {
+		name     string
+		field    string
+		expected string
+	}{
+		{
+			name:     "string",
+			field:    "a",
+			expected: "abc",
+		},
+		{
+			name:     "int",
+			field:    "b",
+			expected: "123",
+		},
+		{
+			name:     "bool",
+			field:    "c",
+			expected: "true",
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			v, err := structField(s, c.field)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if v != c.expected {
+				t.Fatalf("expected %s, got %s", c.expected, v)
+			}
+		})
+	}
+}

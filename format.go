@@ -166,3 +166,45 @@ func (f *Format) ToMap(path string) (map[string]string, error) {
 func split(s string) []string {
 	return strings.Split(strings.TrimPrefix(s, "/"), "/")
 }
+
+func (f *Format) FromStruct(s interface{}) (string, error) {
+	parts := make([]string, len(f.parts))
+	for i, p := range f.parts {
+		if p.variable != "" {
+			val, err := structField(s, p.variable)
+			if err != nil {
+				return "", err
+			}
+			parts[i] = val
+		} else {
+			parts[i] = p.static
+		}
+	}
+
+	prefix := ""
+	if strings.HasPrefix(f.str, "/") {
+		prefix = "/"
+	}
+
+	return prefix + strings.Join(parts, "/"), nil
+}
+
+// structField returns the value of a field in a struct
+// with "path" tag.
+func structField(s interface{}, field string) (string, error) {
+	val := reflect.ValueOf(s)
+	if val.Kind() != reflect.Struct {
+		return "", fmt.Errorf("expected struct, got %v", val.Kind())
+	}
+
+	typ := val.Type()
+	for i := 0; i < typ.NumField(); i++ {
+		f := typ.Field(i)
+		if f.Tag.Get(tag) == field {
+			// Return the string value of the field.
+			return fmt.Sprintf("%v", val.Field(i).Interface()), nil
+		}
+	}
+
+	return "", fmt.Errorf("field %q not found", field)
+}
